@@ -80,16 +80,34 @@ def generate_printable_report(clinic_data: ClinicData) -> str:
         <meta charset="utf-8">
         <title>נוכחות שיקום יום - {month_name} {clinic_data.default_year}</title>
         <style>
-            body {{ font-family: 'Segoe UI', Arial, sans-serif; padding: 20px; color: #333; }}
-            h1 {{ text-align: center; color: #2F6FED; margin-bottom: 5px; }}
-            h2 {{ text-align: center; color: #555; margin-top: 0; font-weight: normal; font-size: 20px; }}
-            table {{ border-collapse: collapse; width: 100%; margin-top: 20px; font-size: 15px; page-break-inside: auto; }}
+            @page {{
+                size: A4 landscape; /* מכריח את ההדפסה להיות לרוחב הדף */
+                margin: 10mm;
+            }}
+            body {{ font-family: 'Segoe UI', Arial, sans-serif; padding: 10px; color: #333; }}
+            h1 {{ text-align: center; color: #2F6FED; margin-bottom: 5px; font-size: 24px; }}
+            h2 {{ text-align: center; color: #555; margin-top: 0; font-weight: normal; font-size: 18px; }}
+            table {{ 
+                border-collapse: collapse; 
+                width: 100%; 
+                margin-top: 15px; 
+                font-size: 13px; 
+                page-break-inside: auto;
+                table-layout: auto;
+            }}
             tr {{ page-break-inside: avoid; page-break-after: auto; }}
-            th, td {{ border: 1px solid #ddd; padding: 8px; text-align: center; }}
-            th {{ background-color: #EEF2FB; color: #1F2430; }}
+            /* הקטנת הריווחים (Padding) כדי לדחוס יותר עמודות */
+            th, td {{ border: 1px solid #aaa; padding: 4px 3px; text-align: center; word-wrap: break-word; }}
+            th {{ background-color: #EEF2FB; color: #1F2430; font-size: 14px; }}
             .totals-row th {{ background-color: #E5F6EE; font-weight: bold; }}
-            .summary-box {{ margin-top: 30px; padding: 15px; background-color: #F5F7FA; border-radius: 8px; border: 1px solid #E1E5EB; display: inline-block; }}
-            .summary-box p {{ margin: 5px 0; font-size: 16px; font-weight: bold; }}
+            .summary-box {{ margin-top: 20px; padding: 10px; background-color: #F5F7FA; border-radius: 8px; border: 1px solid #E1E5EB; display: inline-block; }}
+            .summary-box p {{ margin: 5px 0; font-size: 14px; font-weight: bold; }}
+            
+            /* התאמות נוספות ספציפיות רק לזמן הדפסה */
+            @media print {{
+                body {{ zoom: 0.85; }} /* מקטין את הכל ב-15% כדי שיכנס לדף */
+                .summary-box {{ border: 1px solid #ccc; }}
+            }}
         </style>
     </head>
     <body>
