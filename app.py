@@ -69,14 +69,20 @@ def smart_parse_date(date_str: str, d_month: int, d_year: int) -> str:
 
 def generate_printable_report(clinic_data: ClinicData) -> str:
     """מחולל קוד HTML מעוצב שמיועד להדפסה או לשמירה כ-PDF מהדפדפן"""
+    
+    # המרת מספר החודש לשם בעברית
+    months_he = ["", "ינואר", "פברואר", "מרץ", "אפריל", "מאי", "יוני", "יולי", "אוגוסט", "ספטמבר", "אוקטובר", "נובמבר", "דצמבר"]
+    month_name = months_he[clinic_data.default_month]
+    
     html = f"""<!DOCTYPE html>
     <html dir="rtl" lang="he">
     <head>
         <meta charset="utf-8">
-        <title>דוח נוכחות - {APP_NAME}</title>
+        <title>נוכחות שיקום יום - {month_name} {clinic_data.default_year}</title>
         <style>
             body {{ font-family: 'Segoe UI', Arial, sans-serif; padding: 20px; color: #333; }}
-            h1 {{ text-align: center; color: #2F6FED; }}
+            h1 {{ text-align: center; color: #2F6FED; margin-bottom: 5px; }}
+            h2 {{ text-align: center; color: #555; margin-top: 0; font-weight: normal; font-size: 20px; }}
             table {{ border-collapse: collapse; width: 100%; margin-top: 20px; font-size: 15px; page-break-inside: auto; }}
             tr {{ page-break-inside: avoid; page-break-after: auto; }}
             th, td {{ border: 1px solid #ddd; padding: 8px; text-align: center; }}
@@ -87,7 +93,8 @@ def generate_printable_report(clinic_data: ClinicData) -> str:
         </style>
     </head>
     <body>
-        <h1>דוח נוכחות קליניקה</h1>
+        <h1>נוכחות שיקום יום</h1>
+        <h2>{month_name} {clinic_data.default_year}</h2>
         <table>
             <thead>
                 <tr>
@@ -203,7 +210,7 @@ with st.sidebar:
             st.rerun()
 
 # --- אזור ראשי: טבלה וסיכומים ---
-st.title(APP_NAME)
+st.title("נוכחות שיקום יום")
 
 # בניית מסד הנתונים לטבלה המרכזית
 df_dict = {"שם מטופל": data.patients}
