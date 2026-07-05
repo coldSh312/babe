@@ -68,7 +68,13 @@ def smart_parse_date(date_str: str, d_month: int, d_year: int) -> str:
         raise ValueError("פורמט תאריך לא חוקי. אנא הזן יום תקין.")
 
 def generate_printable_report(clinic_data: ClinicData) -> str:
-    """מחולל קוד HTML מעוצב שמיועד להדפסה או לשמירה כ-PDF מהדפדפן"""
+    """מחולל קוד HTML מעוצב שמיועד להדפסה או לשמירה כ-PDF מהדפדפן עם התאמה דינמית לכמות העמודות"""
+    
+    # חישוב דינמי של גדלים כדי לדחוס טבלאות עמוסות
+    num_cols = len(clinic_data.dates)
+    font_size = max(8, 14 - (num_cols // 4))  # פונט בסיס 14, לא יורד מתחת ל-8px
+    cell_padding = "2px 1px" if num_cols > 15 else "6px 4px"
+    first_col_width = "18%" if num_cols < 15 else "12%" # שומר מקום לשם המטופל
     
     # המרת מספר החודש לשם בעברית
     months_he = ["", "ינואר", "פברואר", "מרץ", "אפריל", "מאי", "יוני", "יולי", "אוגוסט", "ספטמבר", "אוקטובר", "נובמבר", "דצמבר"]
@@ -81,32 +87,46 @@ def generate_printable_report(clinic_data: ClinicData) -> str:
         <title>נוכחות שיקום יום - {month_name} {clinic_data.default_year}</title>
         <style>
             @page {{
-                size: A4 landscape; /* מכריח את ההדפסה להיות לרוחב הדף */
-                margin: 10mm;
+                size: A4 landscape;
+                margin: 8mm;
             }}
-            body {{ font-family: 'Segoe UI', Arial, sans-serif; padding: 10px; color: #333; }}
-            h1 {{ text-align: center; color: #2F6FED; margin-bottom: 5px; font-size: 24px; }}
-            h2 {{ text-align: center; color: #555; margin-top: 0; font-weight: normal; font-size: 18px; }}
+            body {{ font-family: 'Segoe UI', Arial, sans-serif; padding: 0; color: #333; }}
+            h1 {{ text-align: center; color: #2F6FED; margin-bottom: 5px; font-size: 22px; }}
+            h2 {{ text-align: center; color: #555; margin-top: 0; font-weight: normal; font-size: 16px; }}
             table {{ 
                 border-collapse: collapse; 
                 width: 100%; 
-                margin-top: 15px; 
-                font-size: 13px; 
-                page-break-inside: auto;
-                table-layout: auto;
+                margin-top: 10px; 
+                table-layout: fixed; /* מכריח את הטבלה להישאר ברוחב הדף בדיוק */
             }}
             tr {{ page-break-inside: avoid; page-break-after: auto; }}
-            /* הקטנת הריווחים (Padding) כדי לדחוס יותר עמודות */
-            th, td {{ border: 1px solid #aaa; padding: 4px 3px; text-align: center; word-wrap: break-word; }}
-            th {{ background-color: #EEF2FB; color: #1F2430; font-size: 14px; }}
-            .totals-row th {{ background-color: #E5F6EE; font-weight: bold; }}
-            .summary-box {{ margin-top: 20px; padding: 10px; background-color: #F5F7FA; border-radius: 8px; border: 1px solid #E1E5EB; display: inline-block; }}
-            .summary-box p {{ margin: 5px 0; font-size: 14px; font-weight: bold; }}
             
-            /* התאמות נוספות ספציפיות רק לזמן הדפסה */
+            /* עיצוב דינמי שמגן על עמודת השם ומכווץ את שאר העמודות */
+            th:first-child, td:first-child {{ width: {first_col_width}; white-space: normal; }}
+            
+            th, td {{ 
+                border: 1px solid #aaa; 
+                padding: {cell_padding}; 
+                text-align: center; 
+                font-size: {font_size}px; 
+                word-wrap: break-word;
+                overflow: hidden;
+            }}
+            th {{ background-color: #EEF2FB; color: #1F2430; font-size: {min(14, font_size + 1)}px; }}
+            .totals-row th {{ background-color: #E5F6EE; font-weight: bold; }}
+            
+            .summary-box {{ 
+                margin-top: 15px; 
+                padding: 10px; 
+                background-color: #F5F7FA; 
+                border-radius: 8px; 
+                border: 1px solid #E1E5EB; 
+                display: inline-block; 
+            }}
+            .summary-box p {{ margin: 3px 0; font-size: 13px; font-weight: bold; }}
+            
             @media print {{
-                body {{ zoom: 0.85; }} /* מקטין את הכל ב-15% כדי שיכנס לדף */
-                .summary-box {{ border: 1px solid #ccc; }}
+                body {{ zoom: 0.95; }} 
             }}
         </style>
     </head>
@@ -150,11 +170,10 @@ def generate_printable_report(clinic_data: ClinicData) -> str:
         <div class="summary-box">
             <p>סה"כ טיפולים כולל: {clinic_data.get_grand_total()}</p>
             <p>מחיר לטיפול: {clinic_data.price_per_session:,.0f} ₪</p>
-            <p style="color: #2FB380; font-size: 18px;">סה"כ הכנסה: {clinic_data.get_total_income():,.0f} ₪</p>
+            <p style="color: #2FB380; font-size: 16px;">סה"כ הכנסה: {clinic_data.get_total_income():,.0f} ₪</p>
         </div>
         
         <script>
-            // מקפיץ אוטומטית את חלון ההדפסה / חלון ה-PDF
             window.onload = function() {{ window.print(); }}
         </script>
     </body>
