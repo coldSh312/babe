@@ -144,7 +144,7 @@ def generate_printable_report(clinic_data: ClinicData) -> str:
     """
     return html
 
-# הפונקציה שתרוץ כ-Callback ותאפס בבטחה את השדות
+# הפונקציה שתרוץ כ-Callback ותאפס בבטחה את השדות בהזנה מהירה
 def add_bulk_attendance():
     date_val = st.session_state.get("bulk_date", "")
     new_names_val = st.session_state.get("bulk_new_names", "")
@@ -170,7 +170,6 @@ def add_bulk_attendance():
 
         save_data()
 
-        # איפוס השדות בבטחה מתוך ה-Callback
         st.session_state.bulk_date = ""
         st.session_state.bulk_new_names = ""
         st.session_state.bulk_existing = []
@@ -195,7 +194,6 @@ with st.sidebar:
     st.divider()
     st.subheader("הזנת נוכחות מרוכזת")
     
-    # הצגת הודעות אם הוגדרו בפונקציית העדכון
     if "bulk_feedback" in st.session_state:
         ftype, fmsg = st.session_state.bulk_feedback
         if ftype == "warning": st.warning(fmsg)
@@ -207,22 +205,61 @@ with st.sidebar:
     st.text_area("מטופלים חדשים (מופרדים בשורה/פסיק):", key="bulk_new_names")
     st.multiselect("מטופלים קיימים:", data.patients, key="bulk_existing")
     
-    # חיבור הכפתור לפונקציית ה-Callback שלנו
     st.button("סמן נוכחות לתאריך זה", use_container_width=True, on_click=add_bulk_attendance)
 
     st.divider()
-    with st.expander("ניהול מחיקות נקודתיות", expanded=False):
-        del_patient = st.selectbox("בחר מטופל למחיקה:", [""] + data.patients)
-        if st.button("מחק מטופל") and del_patient:
-            data.remove_patient(del_patient)
-            save_data()
-            st.rerun()
-            
-        del_date = st.selectbox("בחר תאריך למחיקה:", [""] + data.dates)
-        if st.button("מחק תאריך") and del_date:
-            data.remove_date(del_date)
-            save_data()
-            st.rerun()
+    
+    # אזור העריכה והמחיקה המחודש עם טאבים
+    with st.expander("✏️ עריכה ומחיקה", expanded=False):
+        edit_tabs = st.tabs(["תאריכים", "מטופלים", "מחיקות"])
+        
+        # כרטיסיית עריכת תאריכים
+        with edit_tabs[0]:
+            old_date = st.selectbox("בחר תאריך לעריכה:", [""] + data.dates, key="ren_d_old")
+            new_date = st.text_input("הזן תאריך מתוקן:", key="ren_d_new")
+            if st.button("עדכן תאריך", use_container_width=True):
+                if old_date and new_date:
+                    try:
+                        norm = smart_parse_date(new_date, data.default_month, data.default_year)
+                        data.rename_date(old_date, norm)
+                        save_data()
+                        st.success(f"תוקן מ-{old_date} ל-{norm}")
+                        st.rerun()
+                    except ValueError as e:
+                        st.error(str(e))
+                else:
+                    st.warning("נא לבחור תאריך ולהזין ערך חדש")
+                    
+        # כרטיסיית עריכת שמות מטופלים
+        with edit_tabs[1]:
+            old_p = st.selectbox("בחר מטופל לעריכה:", [""] + data.patients, key="ren_p_old")
+            new_p = st.text_input("הזן שם מתוקן:", key="ren_p_new")
+            if st.button("עדכן שם מטופל", use_container_width=True):
+                if old_p and new_p:
+                    try:
+                        data.rename_patient(old_p, new_p)
+                        save_data()
+                        st.success("שם עודכן בהצלחה")
+                        st.rerun()
+                    except ValueError as e:
+                        st.error(str(e))
+                else:
+                    st.warning("נא לבחור מטופל ולהזין שם חדש")
+                    
+        # כרטיסיית המחיקות הישנה
+        with edit_tabs[2]:
+            st.caption("שים לב: מחיקה מוחקת גם את נתוני הנוכחות של אותו תאריך/מטופל!")
+            del_patient = st.selectbox("בחר מטופל למחיקה מלאה:", [""] + data.patients)
+            if st.button("מחק מטופל") and del_patient:
+                data.remove_patient(del_patient)
+                save_data()
+                st.rerun()
+                
+            del_date = st.selectbox("בחר תאריך למחיקה מלאה:", [""] + data.dates)
+            if st.button("מחק תאריך") and del_date:
+                data.remove_date(del_date)
+                save_data()
+                st.rerun()
             
     st.divider()
     with st.expander("⚠️ איפוס מערכת מלא", expanded=False):
