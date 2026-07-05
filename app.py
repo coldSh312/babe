@@ -144,6 +144,42 @@ def generate_printable_report(clinic_data: ClinicData) -> str:
     """
     return html
 
+# הפונקציה שתרוץ כ-Callback ותאפס בבטחה את השדות
+def add_bulk_attendance():
+    date_val = st.session_state.get("bulk_date", "")
+    new_names_val = st.session_state.get("bulk_new_names", "")
+    existing_val = st.session_state.get("bulk_existing", [])
+
+    if not date_val:
+        st.session_state.bulk_feedback = ("warning", "נא להזין תאריך")
+        return
+
+    try:
+        norm_date = smart_parse_date(date_val, data.default_month, data.default_year)
+        data.add_date(norm_date)
+
+        all_names = set(existing_val)
+        for name in re.split(r'[,\n]+', new_names_val):
+            cname = name.strip()
+            if cname: all_names.add(cname)
+
+        for cname in all_names:
+            if cname not in data.patients:
+                data.add_patient(cname)
+            data.attendance[cname][norm_date] = True
+
+        save_data()
+
+        # איפוס השדות בבטחה מתוך ה-Callback
+        st.session_state.bulk_date = ""
+        st.session_state.bulk_new_names = ""
+        st.session_state.bulk_existing = []
+
+        st.session_state.bulk_feedback = ("success", f"עודכן בהצלחה לתאריך {norm_date}!")
+    except ValueError as e:
+        st.session_state.bulk_feedback = ("error", str(e))
+
+
 # --- סרגל צד ---
 with st.sidebar:
     st.header("⚙️ הגדרות והזנה")
@@ -159,43 +195,20 @@ with st.sidebar:
     st.divider()
     st.subheader("הזנת נוכחות מרוכזת")
     
-    # אתחול משתני מצב כדי שנוכל לאפס את השדות
-    if "bulk_date" not in st.session_state: st.session_state.bulk_date = ""
-    if "bulk_new_names" not in st.session_state: st.session_state.bulk_new_names = ""
-    if "bulk_existing" not in st.session_state: st.session_state.bulk_existing = []
+    # הצגת הודעות אם הוגדרו בפונקציית העדכון
+    if "bulk_feedback" in st.session_state:
+        ftype, fmsg = st.session_state.bulk_feedback
+        if ftype == "warning": st.warning(fmsg)
+        elif ftype == "success": st.success(fmsg)
+        elif ftype == "error": st.error(fmsg)
+        del st.session_state.bulk_feedback
     
-    date_input = st.text_input("יום או תאריך מלא (למשל: 5):", key="bulk_date")
-    new_names_input = st.text_area("מטופלים חדשים (מופרדים בשורה/פסיק):", key="bulk_new_names")
-    selected_existing = st.multiselect("מטופלים קיימים:", data.patients, key="bulk_existing")
+    st.text_input("יום או תאריך מלא (למשל: 5):", key="bulk_date")
+    st.text_area("מטופלים חדשים (מופרדים בשורה/פסיק):", key="bulk_new_names")
+    st.multiselect("מטופלים קיימים:", data.patients, key="bulk_existing")
     
-    if st.button("סמן נוכחות לתאריך זה", use_container_width=True):
-        if not date_input:
-            st.warning("נא להזין תאריך")
-        else:
-            try:
-                norm_date = smart_parse_date(date_input, data.default_month, data.default_year)
-                data.add_date(norm_date)
-                
-                all_names = set(selected_existing)
-                for name in re.split(r'[,\n]+', new_names_input):
-                    cname = name.strip()
-                    if cname: all_names.add(cname)
-                    
-                for cname in all_names:
-                    if cname not in data.patients:
-                        data.add_patient(cname)
-                    data.attendance[cname][norm_date] = True
-                    
-                save_data()
-                
-                # איפוס השדות בממשק מיד לאחר השמירה
-                st.session_state.bulk_date = ""
-                st.session_state.bulk_new_names = ""
-                st.session_state.bulk_existing = []
-                
-                st.rerun()
-            except ValueError as e:
-                st.error(str(e))
+    # חיבור הכפתור לפונקציית ה-Callback שלנו
+    st.button("סמן נוכחות לתאריך זה", use_container_width=True, on_click=add_bulk_attendance)
 
     st.divider()
     with st.expander("ניהול מחיקות נקודתיות", expanded=False):
