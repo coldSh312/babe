@@ -159,9 +159,14 @@ with st.sidebar:
     st.divider()
     st.subheader("הזנת נוכחות מרוכזת")
     
-    date_input = st.text_input("יום או תאריך מלא (למשל: 5):")
-    new_names_input = st.text_area("מטופלים חדשים (מופרדים בשורה/פסיק):")
-    selected_existing = st.multiselect("מטופלים קיימים:", data.patients)
+    # אתחול משתני מצב כדי שנוכל לאפס את השדות
+    if "bulk_date" not in st.session_state: st.session_state.bulk_date = ""
+    if "bulk_new_names" not in st.session_state: st.session_state.bulk_new_names = ""
+    if "bulk_existing" not in st.session_state: st.session_state.bulk_existing = []
+    
+    date_input = st.text_input("יום או תאריך מלא (למשל: 5):", key="bulk_date")
+    new_names_input = st.text_area("מטופלים חדשים (מופרדים בשורה/פסיק):", key="bulk_new_names")
+    selected_existing = st.multiselect("מטופלים קיימים:", data.patients, key="bulk_existing")
     
     if st.button("סמן נוכחות לתאריך זה", use_container_width=True):
         if not date_input:
@@ -182,7 +187,12 @@ with st.sidebar:
                     data.attendance[cname][norm_date] = True
                     
                 save_data()
-                st.success(f"עודכן בהצלחה לתאריך {norm_date}!")
+                
+                # איפוס השדות בממשק מיד לאחר השמירה
+                st.session_state.bulk_date = ""
+                st.session_state.bulk_new_names = ""
+                st.session_state.bulk_existing = []
+                
                 st.rerun()
             except ValueError as e:
                 st.error(str(e))
