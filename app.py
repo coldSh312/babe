@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import re
+import base64
 from datetime import datetime
 
 from models import ClinicData
@@ -21,10 +22,13 @@ st.markdown("""
         direction: rtl;
     }
     .st-emotion-cache-1kyxreq { justify-content: flex-end; }
+    /* עיצוב כפתור מחיקה כדי שייראה בולט ומזהיר */
+    button[kind="primary"] { background-color: #E5484D; color: white; border: none; }
+    button[kind="primary"]:hover { background-color: #C93A3E; color: white; }
     </style>
 """, unsafe_allow_html=True)
 
-# --- טעינת נתונים (נטען פעם אחת ונשמר ב-Session) ---
+# --- טעינת נתונים ---
 @st.cache_resource
 def get_storage():
     return JsonStorage(DATA_FILE)
@@ -63,7 +67,77 @@ def smart_parse_date(date_str: str, d_month: int, d_year: int) -> str:
     except ValueError:
         raise ValueError("פורמט תאריך לא חוקי. אנא הזן יום תקין.")
 
-# --- סרגל צד: הזנה מהירה והגדרות ---
+def generate_printable_report(clinic_data: ClinicData) -> str:
+    """מחולל קוד HTML מעוצב שמיועד להדפסה או לשמירה כ-PDF מהדפדפן"""
+    html = f"""<!DOCTYPE html>
+    <html dir="rtl" lang="he">
+    <head>
+        <meta charset="utf-8">
+        <title>דוח נוכחות - {APP_NAME}</title>
+        <style>
+            body {{ font-family: 'Segoe UI', Arial, sans-serif; padding: 20px; color: #333; }}
+            h1 {{ text-align: center; color: #2F6FED; }}
+            table {{ border-collapse: collapse; width: 100%; margin-top: 20px; font-size: 15px; page-break-inside: auto; }}
+            tr {{ page-break-inside: avoid; page-break-after: auto; }}
+            th, td {{ border: 1px solid #ddd; padding: 8px; text-align: center; }}
+            th {{ background-color: #EEF2FB; color: #1F2430; }}
+            .totals-row th {{ background-color: #E5F6EE; font-weight: bold; }}
+            .summary-box {{ margin-top: 30px; padding: 15px; background-color: #F5F7FA; border-radius: 8px; border: 1px solid #E1E5EB; display: inline-block; }}
+            .summary-box p {{ margin: 5px 0; font-size: 16px; font-weight: bold; }}
+        </style>
+    </head>
+    <body>
+        <h1>דוח נוכחות קליניקה</h1>
+        <table>
+            <thead>
+                <tr>
+                    <th>שם מטופל</th>
+    """
+    for d in clinic_data.dates:
+        html += f"<th>{d}</th>"
+    
+    html += """
+                </tr>
+            </thead>
+            <tbody>
+    """
+    for p in clinic_data.patients:
+        html += f"<tr><td><strong>{p}</strong></td>"
+        for d in clinic_data.dates:
+            mark = "✔️" if clinic_data.is_present(p, d) else ""
+            html += f"<td>{mark}</td>"
+        html += "</tr>"
+    
+    html += """
+            </tbody>
+            <tfoot>
+                <tr class="totals-row">
+                    <th>סה"כ ליום</th>
+    """
+    for d in clinic_data.dates:
+        html += f"<th>{clinic_data.get_date_total(d)}</th>"
+        
+    html += f"""
+                </tr>
+            </tfoot>
+        </table>
+        
+        <div class="summary-box">
+            <p>סה"כ טיפולים כולל: {clinic_data.get_grand_total()}</p>
+            <p>מחיר לטיפול: {clinic_data.price_per_session:,.0f} ₪</p>
+            <p style="color: #2FB380; font-size: 18px;">סה"כ הכנסה: {clinic_data.get_total_income():,.0f} ₪</p>
+        </div>
+        
+        <script>
+            // מקפיץ אוטומטית את חלון ההדפסה / חלון ה-PDF
+            window.onload = function() {{ window.print(); }}
+        </script>
+    </body>
+    </html>
+    """
+    return html
+
+# --- סרגל צד ---
 with st.sidebar:
     st.header("⚙️ הגדרות והזנה")
     
@@ -79,8 +153,8 @@ with st.sidebar:
     st.subheader("הזנת נוכחות מרוכזת")
     
     date_input = st.text_input("יום או תאריך מלא (למשל: 5):")
-    selected_existing = st.multiselect("מטופלים קיימים:", data.patients)
     new_names_input = st.text_area("מטופלים חדשים (מופרדים בשורה/פסיק):")
+    selected_existing = st.multiselect("מטופלים קיימים:", data.patients)
     
     if st.button("סמן נוכחות לתאריך זה", use_container_width=True):
         if not date_input:
@@ -107,8 +181,7 @@ with st.sidebar:
                 st.error(str(e))
 
     st.divider()
-    with st.expander("ניהול מחיקות", expanded=False):
-        st.write("בממשק הווב לא ניתן ללחוץ מקש ימני. מחק מכאן:")
+    with st.expander("ניהול מחיקות נקודתיות", expanded=False):
         del_patient = st.selectbox("בחר מטופל למחיקה:", [""] + data.patients)
         if st.button("מחק מטופל") and del_patient:
             data.remove_patient(del_patient)
@@ -120,22 +193,30 @@ with st.sidebar:
             data.remove_date(del_date)
             save_data()
             st.rerun()
+            
+    st.divider()
+    with st.expander("⚠️ איפוס מערכת מלא", expanded=False):
+        st.error("פעולה זו תמחק את כל המטופלים, התאריכים וסימוני הנוכחות. לא ניתן לשחזר לאחר מכן!")
+        if st.button("כן, מחק את כל הנתונים", type="primary"):
+            st.session_state.clinic_data = ClinicData(default_month=data.default_month, default_year=data.default_year)
+            save_data()
+            st.rerun()
 
 # --- אזור ראשי: טבלה וסיכומים ---
 st.title(APP_NAME)
 
-# בניית מסד הנתונים לטבלה
+# בניית מסד הנתונים לטבלה המרכזית
 df_dict = {"שם מטופל": data.patients}
 for d in data.dates:
     df_dict[d] = [data.is_present(p, d) for p in data.patients]
-df_dict["סה\"כ מפגשים"] = [data.get_patient_total(p) for p in data.patients]
+df_dict["סה\"כ מטופל"] = [data.get_patient_total(p) for p in data.patients]
 
 df = pd.DataFrame(df_dict)
 
 st.subheader("טבלת נוכחות (ניתן לסמן/לבטל V ישירות מהטבלה)")
 
-# הצגת הטבלה כאינטראקטיבית (data_editor)
-disabled_cols = ["שם מטופל", "סה\"כ מפגשים"]
+# הצגת הטבלה כאינטראקטיבית
+disabled_cols = ["שם מטופל", "סה\"כ מטופל"]
 edited_df = st.data_editor(
     df,
     disabled=disabled_cols,
@@ -144,7 +225,7 @@ edited_df = st.data_editor(
     key="attendance_editor"
 )
 
-# בדיקה אם המשתמש סימן/ביטל V בטבלה ועדכון הלוגיקה בהתאם
+# בדיקה אם המשתמש סימן/ביטל V בטבלה
 changes_made = False
 for i, row in edited_df.iterrows():
     p_name = row["שם מטופל"]
@@ -158,12 +239,20 @@ if changes_made:
     save_data()
     st.rerun()
 
-# --- שורת סיכום יומית ---
-cols = st.columns(len(data.dates) + 2)
-cols[0].write("**סה\"כ ליום:**")
-for idx, d in enumerate(data.dates):
-    cols[idx+1].write(f"**{data.get_date_total(d)}**")
+# --- טבלת סה"כ ליום תחתית מסונכרנת ---
+if data.dates:
+    st.write("**סה\"כ טיפולים ליום:**")
+    summary_data = {"שם מטופל": ["סה\"כ"]}
+    for d in data.dates:
+        summary_data[d] = [data.get_date_total(d)]
+    summary_data["סה\"כ מטופל"] = [""] # עמודת דמי כדי לשמור על יישור מושלם מול הטבלה הראשית
     
+    st.dataframe(
+        pd.DataFrame(summary_data),
+        hide_index=True,
+        use_container_width=True
+    )
+
 st.divider()
 
 # --- הכנסות וייצוא ---
@@ -179,11 +268,21 @@ with col2:
     st.metric("סה\"כ הכנסה", f"₪ {data.get_total_income():,.0f}")
     st.metric("סה\"כ כל המפגשים", data.get_grand_total())
 
-# כפתור הורדה לאקסל (עם קידוד מיוחד שתומך בעברית)
-csv_data = df.to_csv(index=False).encode('utf-8-sig')
-st.download_button(
-    label="📥 ייצא נתונים לאקסל (CSV)",
-    data=csv_data,
-    file_name="attendance_export.csv",
-    mime="text/csv"
+st.write("---")
+st.subheader("הפקת דוחות")
+
+# כפתור ייצוא לדוח מותאם ל-PDF
+report_html = generate_printable_report(data)
+b64_report = base64.b64encode(report_html.encode('utf-8')).decode()
+
+st.markdown(
+    f"""
+    <a href="data:text/html;base64,{b64_report}" download="attendance_report.html" style="text-decoration: none;">
+        <div style="background-color: #2F6FED; color: white; padding: 10px 20px; border-radius: 5px; text-align: center; font-weight: bold; width: 100%; cursor: pointer; display: inline-block;">
+            🖨️ לחץ כאן לייצוא הדוח / שמירה כ-PDF
+        </div>
+    </a>
+    <p style="font-size: 12px; color: gray; text-align: center;">הדוח יירד למכשירך ויפתח אוטומטית חלון הדפסה. משם תוכל לבחור "שמור כ-PDF".</p>
+    """,
+    unsafe_allow_html=True
 )
