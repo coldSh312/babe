@@ -131,7 +131,7 @@ def generate_printable_report(clinic_data: ClinicData) -> str:
         </style>
     </head>
     <body>
-        <h1>נוכחות שיקום יום</h1>
+        <h1>מכון ריפוי בעיסוק - נוכחות שיקום יום</h1>
         <h2>{month_name} {clinic_data.default_year}</h2>
         <table>
             <thead>
@@ -307,7 +307,7 @@ with st.sidebar:
             st.rerun()
 
 # --- אזור ראשי: טבלה וסיכומים ---
-st.title("נוכחות שיקום יום")
+st.title("מכון ריפוי בעיסוק - נוכחות שיקום יום")
 
 # בניית מסד הנתונים לטבלה המרכזית
 df_dict = {"שם מטופל": data.patients}
