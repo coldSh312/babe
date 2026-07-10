@@ -404,7 +404,3 @@ st.markdown(
     """,
     unsafe_allow_html=True
 )
-    <p style="font-size: 12px; color: gray; text-align: center;">הדוח יירד למכשירך ויפתח אוטומטית חלון הדפסה. משם תוכל לבחור "שמור כ-PDF".</p>
-    """,
-    unsafe_allow_html=True
-)
