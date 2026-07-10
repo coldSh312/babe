@@ -131,7 +131,7 @@ def generate_printable_report(clinic_data: ClinicData) -> str:
         </style>
     </head>
     <body>
-        <h1>מכון ריפוי בעיסוק - נוכחות שיקום יום</h1>
+        <h1>נוכחות שיקום יום</h1>
         <h2>{month_name} {clinic_data.default_year}</h2>
         <table>
             <thead>
@@ -283,31 +283,45 @@ with st.sidebar:
                 else:
                     st.warning("נא לבחור מטופל ולהזין שם חדש")
                     
-        # כרטיסיית המחיקות הישנה
+        # כרטיסיית המחיקות
         with edit_tabs[2]:
             st.caption("שים לב: מחיקה מוחקת גם את נתוני הנוכחות של אותו תאריך/מטופל!")
-            del_patient = st.selectbox("בחר מטופל למחיקה מלאה:", [""] + data.patients)
+            del_patient = st.selectbox("בחר מטופל למחיקה מהרשימה:", [""] + data.patients)
             if st.button("מחק מטופל") and del_patient:
                 data.remove_patient(del_patient)
                 save_data()
                 st.rerun()
                 
-            del_date = st.selectbox("בחר תאריך למחיקה מלאה:", [""] + data.dates)
+            del_date = st.selectbox("בחר תאריך למחיקה:", [""] + data.dates)
             if st.button("מחק תאריך") and del_date:
                 data.remove_date(del_date)
                 save_data()
                 st.rerun()
             
     st.divider()
-    with st.expander("⚠️ איפוס מערכת מלא", expanded=False):
-        st.error("פעולה זו תמחק את כל המטופלים, התאריכים וסימוני הנוכחות. לא ניתן לשחזר לאחר מכן!")
-        if st.button("כן, מחק את כל הנתונים", type="primary"):
+    with st.expander("⚠️ איפוס מערכת", expanded=False):
+        st.write("בחר את סוג האיפוס הרצוי:")
+        
+        st.warning("איפוס חודשי: מוחק את כל התאריכים וסימוני הנוכחות, אך משאיר את רשימת המטופלים והמחיר.")
+        if st.button("איפוס חודשי (שמור מטופלים)", type="primary"):
+            current_patients = data.patients.copy()
+            st.session_state.clinic_data = ClinicData(
+                patients=current_patients,
+                default_month=data.default_month, 
+                default_year=data.default_year,
+                price_per_session=data.price_per_session
+            )
+            save_data()
+            st.rerun()
+            
+        st.error("איפוס מוחלט: מוחק הכל, כולל רשימת המטופלים. המערכת תחזור למצב ריק לחלוטין.")
+        if st.button("איפוס מוחלט (מחק הכל)"):
             st.session_state.clinic_data = ClinicData(default_month=data.default_month, default_year=data.default_year)
             save_data()
             st.rerun()
 
 # --- אזור ראשי: טבלה וסיכומים ---
-st.title("מכון ריפוי בעיסוק - נוכחות שיקום יום")
+st.title("נוכחות שיקום יום")
 
 # בניית מסד הנתונים לטבלה המרכזית
 df_dict = {"שם מטופל": data.patients}
@@ -386,6 +400,10 @@ st.markdown(
             🖨️ לחץ כאן לייצוא הדוח / שמירה כ-PDF
         </div>
     </a>
+    <p style="font-size: 12px; color: gray; text-align: center;">הדוח יירד למכשירך ויפתח אוטומטית חלון הדפסה. משם תוכל לבחור "שמור כ-PDF".</p>
+    """,
+    unsafe_allow_html=True
+)
     <p style="font-size: 12px; color: gray; text-align: center;">הדוח יירד למכשירך ויפתח אוטומטית חלון הדפסה. משם תוכל לבחור "שמור כ-PDF".</p>
     """,
     unsafe_allow_html=True
