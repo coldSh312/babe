@@ -45,6 +45,8 @@ if "clinic_data" not in st.session_state:
 data: ClinicData = st.session_state.clinic_data
 
 def save_data():
+    global data
+    data = st.session_state.clinic_data
     storage.save(data)
 
 def smart_parse_date(date_str: str, d_month: int, d_year: int) -> str:
@@ -270,16 +272,18 @@ with st.sidebar:
             current_patients = data.patients.copy()
             st.session_state.clinic_data = ClinicData(
                 patients=current_patients,
-                default_month=data.default_month, 
+                default_month=data.default_month,
                 default_year=data.default_year,
                 price_per_session=data.price_per_session
             )
+            data = st.session_state.clinic_data
             save_data()
             st.rerun()
             
         st.error("איפוס מוחלט: מוחק הכל, כולל רשימת המטופלים. המערכת תחזור למצב ריק לחלוטין.")
         if st.button("איפוס מוחלט (מחק הכל)"):
             st.session_state.clinic_data = ClinicData(default_month=data.default_month, default_year=data.default_year)
+            data = st.session_state.clinic_data
             save_data()
             st.rerun()
 
