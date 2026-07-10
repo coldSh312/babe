@@ -1,78 +1,66 @@
 """
 storage.py
 ==========
-
-Persistence layer for the clinic attendance application.
-
-Data is stored locally as a single JSON file (no database required). This
-module is the only place that knows about file I/O, so swapping the storage
-backend in the future (e.g. to SQLite) only requires changes here.
+Persistence layer using Google Sheets.
 """
-
-from __future__ import annotations
-
 import json
 import logging
-from pathlib import Path
-from typing import Optional
-
+import streamlit as st
+import gspread
 from models import ClinicData
 
 logger = logging.getLogger(__name__)
 
-
 class StorageError(Exception):
-    """Raised when data cannot be loaded from or saved to disk."""
-
+    pass
 
 class JsonStorage:
-    """Handles reading and writing :class:`ClinicData` to a JSON file on disk."""
-
-    def __init__(self, filepath: Path) -> None:
-        """Initialize the storage handler.
-
-        Args:
-            filepath: Path to the JSON file used for persistence.
-        """
-        self.filepath = filepath
+    """שומר על שם המחלקה כדי לא לשבור קוד ישן, אבל מתחבר עכשיו לגוגל שיטס במקום לקובץ"""
+    
+    def __init__(self, filepath=None):
+        try:
+            self.sheet_url = st.secrets["SHEET_URL"]
+            creds_json = st.secrets["GOOGLE_CREDENTIALS_JSON"]
+            creds_dict = json.loads(creds_json)
+            
+            # התחברות אוטומטית לגוגל שיטס בעזרת gspread והסודות
+            self.client = gspread.service_account_from_dict(creds_dict)
+            self.sheet = self.client.open_by_url(self.sheet_url).sheet1
+        except Exception as e:
+            raise StorageError(f"שגיאה בהגדרות החיבור לגוגל שיטס. ודא שהסודות הוזנו נכון: {e}")
 
     def load(self) -> ClinicData:
-        """Load clinic data from disk.
-
-        Returns:
-            A :class:`ClinicData` instance. If the file does not exist yet,
-            an empty (default) instance is returned instead of raising.
-
-        Raises:
-            StorageError: If the file exists but cannot be parsed.
-        """
-        if not self.filepath.exists():
-            logger.info("No existing data file found at %s. Starting fresh.", self.filepath)
+        try:
+            # מושך את כל הנתונים מהעמודה הראשונה
+            records = self.sheet.col_values(1)
+            if not records:
+                return ClinicData()
+            
+            # מחבר את הבלוקים חזרה לטקסט אחד שלם
+            full_json = "".join(records)
+            data = json.loads(full_json)
+            return ClinicData.from_dict(data)
+        except Exception as e:
+            logger.error(f"Failed to load from GSheets: {e}")
             return ClinicData()
 
-        try:
-            with self.filepath.open("r", encoding="utf-8") as f:
-                raw = json.load(f)
-            return ClinicData.from_dict(raw)
-        except (json.JSONDecodeError, OSError) as exc:
-            raise StorageError(f"לא ניתן לטעון את קובץ הנתונים: {exc}") from exc
-
     def save(self, data: ClinicData) -> None:
-        """Persist clinic data to disk atomically.
-
-        Writes to a temporary file first and then replaces the target file,
-        to minimize the risk of data corruption if the app is closed mid-write.
-
-        Args:
-            data: The :class:`ClinicData` instance to save.
-
-        Raises:
-            StorageError: If the data cannot be written to disk.
-        """
-        tmp_path = self.filepath.with_suffix(".tmp")
         try:
-            with tmp_path.open("w", encoding="utf-8") as f:
-                json.dump(data.to_dict(), f, ensure_ascii=False, indent=2)
-            tmp_path.replace(self.filepath)
-        except OSError as exc:
-            raise StorageError(f"לא ניתן לשמור את קובץ הנתונים: {exc}") from exc
+            full_json = json.dumps(data.to_dict(), ensure_ascii=False)
+            # חלוקה לבלוקים כדי לעקוף את מגבלת 50,000 התווים לתא בגוגל שיטס
+            chunk_size = 40000
+            chunks = [full_json[i:i+chunk_size] for i in range(0, len(full_json), chunk_size)]
+            
+            # מכין את טווח העדכון (תמיד מנקה לפחות 10 תאים כדי למנוע שאריות של מידע ישן)
+            num_cells = max(len(chunks), 10)
+            cell_list = self.sheet.range(f'A1:A{num_cells}')
+            
+            for i, cell in enumerate(cell_list):
+                if i < len(chunks):
+                    cell.value = chunks[i]
+                else:
+                    cell.value = "" 
+            
+            self.sheet.update_cells(cell_list)
+        except Exception as e:
+            raise StorageError(f"לא ניתן לשמור נתונים לגוגל שיטס: {e}")
