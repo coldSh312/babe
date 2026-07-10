@@ -286,6 +286,7 @@ with st.sidebar:
 # --- אזור ראשי: טבלה וסיכומים ---
 st.title("נוכחות שיקום יום")
 
+# בניית מסד הנתונים לטבלה המרכזית
 df_dict = {"שם מטופל": data.patients}
 for d in data.dates:
     df_dict[d] = [data.is_present(p, d) for p in data.patients]
@@ -293,14 +294,15 @@ df_dict["סה\"כ מטופל"] = [data.get_patient_total(p) for p in data.patien
 
 df = pd.DataFrame(df_dict)
 
-st.subheader("טבלת נוכחות (ניתן לסמן/לבטל V ישירות מהטבלה)")
+st.subheader("טבלת נוכחות")
 
+# הצגת הטבלה כאינטראקטיבית - ללא הגדרת width מפורשת שגורמת לשגיאה
 disabled_cols = ["שם מטופל", "סה\"כ מטופל"]
 edited_df = st.data_editor(
     df,
     disabled=disabled_cols,
     hide_index=True,
-    width="stretch",
+    use_container_width=True, # זה בסדר להשתמש בזה, האזהרה בלוגים לא תפיל את האפליקציה
     key="attendance_editor"
 )
 
